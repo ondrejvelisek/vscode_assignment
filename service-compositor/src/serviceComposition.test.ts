@@ -12,6 +12,7 @@ import {
     CancellationToken,
 } from "./serviceComposition";
 
+// Tests could be way faster. Just play wth timeouts and its constants
 const DELAY = 300;
 
 suite("Service Composition", () => {
