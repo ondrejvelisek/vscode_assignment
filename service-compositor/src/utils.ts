@@ -25,6 +25,13 @@ export function promisifyA (a: ServiceA) {
                 }
                 // else continue ticking
             }, 10);
+
+            cancellation.onCancelled(() => {
+                clearInterval(interval);
+                // TODO use ErrorMapper and aborted error
+                reject(new Error('aborted'));
+                a.abort(token);
+            });
         })
     }
 }
@@ -34,6 +41,7 @@ export function promisifyB (b: ServiceB) {
         return await new Promise<ServiceB_Result>((resolve, reject) => {
             b.submit(req, cancellation.isCancelled, timeoutMillis, async (err, resB) => {
                 if (err) {
+                    // TODO use ErrorMapper
                     reject(err)
                 } else {
                     resolve(resB)
