@@ -82,6 +82,49 @@ suite("Service Composition", () => {
         assert.equal(result, "resultF")
     })
 
+    test("Happy path (((A + C) -> E) + C) -> F", async () => {
+        let polls = 0
+        const a: ServiceA = {
+            start(req) {
+                assert.equal(req, "main")
+                return "tokenA"
+            },
+            poll(tok) {
+                assert.equal(tok, "tokenA")
+                polls += 1
+                return polls > 2 ? "resultA" : null
+            },
+            abort(tok) { }
+        }
+        const c: ServiceC = {
+            async call(req) {
+                assert.equal(req, "main")
+                return "resultC"
+            }
+        }
+        const e: ServiceE = {
+            transform: stubServiceENever,
+            combine(aPromise, cPromise) {
+                return [new Promise(async (resolve) => {
+                    const [a, c] = await Promise.all([aPromise, cPromise]);
+                    assert.equal(a, "resultA")
+                    assert.equal(c, "resultC")
+                    resolve("resultE")
+                }), () => { }]
+            }
+        }
+        const f: ServiceF = {
+            present(c, e) {
+                assert.equal(c, "resultC")
+                assert.equal(e, "resultE")
+                return "resultF"
+            }
+        }
+        const sut = createSUT({ a, c, e, f })
+        const result = await sut.run("main", 1000, stubCancelledNever)
+        assert.equal(result, "resultF")
+    })
+
     test("Timeout", async () => {
         const sut = createSUT({})
         try {
