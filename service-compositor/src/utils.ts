@@ -7,18 +7,24 @@ export function promisifyA (a: ServiceA) {
             const startMillis = Date.now();
             const endMillis = startMillis + timeoutMillis;
             
-            let res: ServiceA_Result|null = null;
-
-            // TODO dont block thread
-            while(Date.now() < endMillis && !res) {
-                res = a.poll(token)
-            }
-            if (!res) {
-                //TODO use ErrorMapper and timeout error
-                reject(new Error('timedOut'));
-            } else {
+            let res: ServiceA_Result|null = a.poll(token);
+            if (res) {
                 resolve(res);
+                return;
             }
+
+            const interval = setInterval(() => {
+                res = a.poll(token);
+                if (res) {
+                    clearInterval(interval);
+                    resolve(res);
+                } else if (Date.now() > endMillis) {
+                    clearInterval(interval);
+                    // TODO use ErrorMapper and timeout error
+                    reject(new Error('timedOut'));
+                }
+                // else continue ticking
+            }, 10);
         })
     }
 }
