@@ -1,4 +1,5 @@
 import * as assert from 'node:assert'
+import { mock } from 'node:test'
 import {
     ServiceComposition, Main_Request, Main_Result,
     ServiceA, ServiceA_InvocationToken, ServiceA_Result,
@@ -235,10 +236,77 @@ suite("Service Composition", () => {
             error: async () => new Error("wrapped"),
         }
         const sut = createSUT({ a, b, c, d, e, f, errorMapper })
-        return assert.rejects(
+        assert.rejects(
             sut.run("main", 1000, stubCancelledNever),
             new Error("wrapped")
         )
+    })
+
+    test("Aborting", async () => {
+        let timestamp = Date.now();
+        const aAbort = mock.fn();
+        const a: ServiceA = {
+            start(req) {
+                assert.equal(req, "main")
+                timestamp = Date.now();
+                return "tokenA"
+            },
+            poll(tok) {
+                assert.equal(tok, "tokenA")
+                return Date.now() > timestamp + 300 ? "resultA" : null
+            },
+            abort: aAbort
+        }
+        const b: ServiceB = {
+            submit(req, isCancelled, timeout, callback) {
+                setTimeout(() => assert.strictEqual(isCancelled(), false), 90)
+                setTimeout(() => assert.strictEqual(isCancelled(), true), 110)
+                setTimeout(() => callback(undefined, "resultB"), 300)
+            }
+        }
+        const eTransformAbort = mock.fn();
+        const eCombineAbort = mock.fn();
+        const e: ServiceE = {
+            transform(bFut) {
+                return [new Promise((resolve, reject) => {
+                    bFut.then(b => {
+                        assert.equal(b, "resultB")
+                        return setTimeout(() => resolve("resultE"), 300);
+                    }, reject)
+                }), eTransformAbort]
+            },
+            combine(aPromise, cPromise) {
+                return [(async () => {
+                    const [a, c] = await Promise.all([aPromise, cPromise]);
+                    return new Promise((resolve) => setTimeout(() => resolve("resultE"), 300));
+                })(), eCombineAbort]
+            }
+        }
+
+        const sut = createSUT({ a, b, c, d, e, f })
+        await assert.rejects(
+            async () => {
+                let canceled = false;
+                const listeners: Array<() => void> = [];
+                const onCancelled = (listener: () => void) => {
+                    listeners.push(listener);
+                };
+                const promise = sut.run("main", 1000, { isCancelled: () => canceled, onCancelled });
+                setTimeout(() => {
+                    canceled = true;
+                    listeners.forEach((listener: () => void) => {
+                        listener();
+                    })
+                }, 100);
+                await promise;
+            },
+            new Error("aborted")
+        )
+        assert.strictEqual(aAbort.mock.calls.length, 2);
+        assert.strictEqual(eCombineAbort.mock.calls.length, 1);
+        assert.strictEqual(eTransformAbort.mock.calls.length, 1);
+        // Wait for after abort assertions
+        await new Promise((resolve) => setTimeout(resolve, 50));
     })
 })
 
