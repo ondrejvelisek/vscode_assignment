@@ -35,6 +35,7 @@ export function promisifyA (a: ServiceA, errorMapper: ErrorMapper) {
 }
 
 export function promisifyB (b: ServiceB, errorMapper: ErrorMapper) {
+    // Be carefull to pass correct timeoutMillis (e.g. when service B is called after some other service awaited)
     return async (req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<ServiceB_Result> => {
         return await new Promise<ServiceB_Result>((resolve, reject) => {
             b.submit(req, cancellation.isCancelled, timeoutMillis, async (err, res) => {

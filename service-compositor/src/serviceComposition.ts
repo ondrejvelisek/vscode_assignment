@@ -25,19 +25,28 @@ export class ServiceComposition {
     }
 
     async run(req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<Main_Result> {
-        try {
-            const abdPromise = this.abdPath(req, timeoutMillis, cancellation);
-            const becfPromise = this.becfPath(req, timeoutMillis, cancellation);
-            const acecfPromise = this.acecfPath(req, timeoutMillis, cancellation);
-            const result = await Promise.any([abdPromise, becfPromise, acecfPromise]);
-            return result;
-        } catch (err) {
-            if (err instanceof Error) {
-                throw await this.errorMapper.error([err]);
-            } else {
-                throw await this.errorMapper.error([new Error(`${err}`)]);
+        return new Promise(async (resolve, reject) => {
+            setTimeout(() => {
+                reject(this.errorMapper.timedOut())
+                // TODO Could also cancel running requests to save performance.
+            }, timeoutMillis)
+            cancellation.onCancelled(() => {
+                reject(this.errorMapper.aborted())
+            })
+            try {
+                const abdPromise = this.abdPath(req, timeoutMillis, cancellation);
+                const becfPromise = this.becfPath(req, timeoutMillis, cancellation);
+                const acecfPromise = this.acecfPath(req, timeoutMillis, cancellation);
+                const result = await Promise.any([abdPromise, becfPromise, acecfPromise]);
+                resolve(result);
+            } catch (err) {
+                if (err instanceof Error) {
+                    reject(this.errorMapper.error([err]));
+                } else {
+                    reject(this.errorMapper.error([new Error(`${err}`)]));
+                }
             }
-        }
+        })
     }
 }
 
