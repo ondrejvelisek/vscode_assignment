@@ -2,11 +2,30 @@
 import * as vscode from 'vscode';
 import { posix } from 'path';
 
-let myStatusBarItem: vscode.StatusBarItem;
+let xmlStatusBarItem: vscode.StatusBarItem;
 
 export async function activate() {
+	xmlStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	updateXmlStatusBarItem();
+	
+	// watch xml files and folder which might contain xml files while deleting
+	const watcher = vscode.workspace.createFileSystemWatcher('{**/*.xml,**/}');
+	watcher.onDidChange(() => updateXmlStatusBarItem());
+	watcher.onDidCreate(() => updateXmlStatusBarItem());
+	watcher.onDidDelete(() => updateXmlStatusBarItem());
+}
+
+export function deactivate() {}
+
+async function updateXmlStatusBarItem () {
+	const count = await countXmlFilesInWorkspace();
+	xmlStatusBarItem.text = `XML: ${count}`;
+	xmlStatusBarItem.show();
+}
+
+async function countXmlFilesInWorkspace (): Promise<number> {
 	if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length <= 0) {
-		return;
+		return 0;
 	}
 
 	const counts = await Promise.all(
@@ -15,13 +34,8 @@ export async function activate() {
 		})
 	);
 	const sum = counts.reduce((sum, count) => sum + count, 0);
-
-	myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	myStatusBarItem.text = `Test status bar item ${sum}`;
-	myStatusBarItem.show();
+	return sum;
 }
-
-export function deactivate() {}
 
 async function countXmlFiles (fileUri: vscode.Uri, fileType: vscode.FileType): Promise<number> {
 	if (fileType === vscode.FileType.File) {
