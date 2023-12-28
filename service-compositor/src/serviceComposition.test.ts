@@ -12,7 +12,7 @@ import {
     CancellationToken,
 } from "./serviceComposition";
 
-
+const DELAY = 300;
 
 suite("Service Composition", () => {
     // FIXME: Does not work when tests runs in parallel;
@@ -25,27 +25,27 @@ suite("Service Composition", () => {
         },
         poll(tok) {
             assert.equal(tok, "tokenA")
-            return Date.now() > timestamp + 300 ? "resultA" : null
+            return Date.now() > timestamp + DELAY ? "resultA" : null
         },
         abort(tok) { }
     }
     const b: ServiceB = {
         submit(req, isCancelled, timeout, callback) {
             assert.equal(req, "main")
-            setTimeout(() => callback(undefined, "resultB"), 300)
+            setTimeout(() => callback(undefined, "resultB"), DELAY)
         }
     }
     const c: ServiceC = {
         async call(req) {
             assert.equal(req, "main")
-            return new Promise((resolve) => setTimeout(() => resolve("resultC"), 300))
+            return new Promise((resolve) => setTimeout(() => resolve("resultC"), DELAY))
         }
     }
     const d: ServiceD = {
         async merge(a, b) {
             assert.equal(a, "resultA")
             assert.equal(b, "resultB")
-            return new Promise((resolve) => setTimeout(() => resolve("resultD"), 300))
+            return new Promise((resolve) => setTimeout(() => resolve("resultD"), DELAY))
         }
     }
     const e: ServiceE = {
@@ -53,14 +53,14 @@ suite("Service Composition", () => {
             return [new Promise((resolve, reject) => {
                 bFut.then(b => {
                     assert.equal(b, "resultB")
-                    return setTimeout(() => resolve("resultE"), 300);
+                    return setTimeout(() => resolve("resultE"), DELAY);
                 }, reject)
             }), () => { }]
         },
         combine(aPromise, cPromise) {
             return [(async () => {
                 const [a, c] = await Promise.all([aPromise, cPromise]);
-                return new Promise((resolve) => setTimeout(() => resolve("resultE"), 300));
+                return new Promise((resolve) => setTimeout(() => resolve("resultE"), DELAY));
             })(), () => { }]
         }
     }
@@ -120,7 +120,7 @@ suite("Service Composition", () => {
             },
             poll(tok) {
                 assert.equal(tok, "tokenA")
-                if (Date.now() > timestamp + 300) {
+                if (Date.now() > timestamp + DELAY) {
                     throw new Error('Service A failed')
                 } else {
                     return null;
@@ -154,7 +154,7 @@ suite("Service Composition", () => {
             },
             poll(tok) {
                 assert.equal(tok, "tokenA")
-                if (Date.now() > timestamp + 300) {
+                if (Date.now() > timestamp + DELAY) {
                     throw new Error('Service A failed')
                 } else {
                     return null;
@@ -165,7 +165,7 @@ suite("Service Composition", () => {
         const b: ServiceB = {
             submit(req, isCancelled, timeout, callback) {
                 assert.equal(req, "main")
-                setTimeout(() => callback(new Error('Service B failed'), ''), 300)
+                setTimeout(() => callback(new Error('Service B failed'), ''), DELAY)
             }
         }
         const errorMapper = {
@@ -184,14 +184,14 @@ suite("Service Composition", () => {
         const c: ServiceC = {
             async call(req) {
                 assert.equal(req, "main")
-                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service C failed")), 300))
+                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service C failed")), DELAY))
             }
         }
         const d: ServiceD = {
             async merge(a, b) {
                 assert.equal(a, "resultA")
                 assert.equal(b, "resultB")
-                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service D failed")), 300))
+                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service D failed")), DELAY))
             }
         }
         const errorMapper = {
@@ -212,14 +212,14 @@ suite("Service Composition", () => {
                 return [new Promise((resolve, reject) => {
                     bFut.then(b => {
                         assert.equal(b, "resultB")
-                        return setTimeout(() => reject(new Error('Service E failed')), 300);
+                        return setTimeout(() => reject(new Error('Service E failed')), DELAY);
                     }, reject)
                 }), () => { }]
             },
             combine(aPromise, cPromise) {
                 return [(async () => {
                     const [a, c] = await Promise.all([aPromise, cPromise]);
-                    return new Promise((resolve, reject) => setTimeout(() => reject(new Error('Service E failed')), 300));
+                    return new Promise((resolve, reject) => setTimeout(() => reject(new Error('Service E failed')), DELAY));
                 })(), () => { }]
             }
         }
@@ -227,7 +227,7 @@ suite("Service Composition", () => {
             async merge(a, b) {
                 assert.equal(a, "resultA")
                 assert.equal(b, "resultB")
-                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service D failed")), 300))
+                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service D failed")), DELAY))
             }
         }
         const errorMapper = {
@@ -253,7 +253,7 @@ suite("Service Composition", () => {
             },
             poll(tok) {
                 assert.equal(tok, "tokenA")
-                return Date.now() > timestamp + 300 ? "resultA" : null
+                return Date.now() > timestamp + DELAY ? "resultA" : null
             },
             abort: aAbort
         }
@@ -261,7 +261,7 @@ suite("Service Composition", () => {
             submit(req, isCancelled, timeout, callback) {
                 setTimeout(() => assert.strictEqual(isCancelled(), false), 90)
                 setTimeout(() => assert.strictEqual(isCancelled(), true), 110)
-                setTimeout(() => callback(undefined, "resultB"), 300)
+                setTimeout(() => callback(undefined, "resultB"), DELAY)
             }
         }
         const eTransformAbort = mock.fn();
@@ -271,14 +271,14 @@ suite("Service Composition", () => {
                 return [new Promise((resolve, reject) => {
                     bFut.then(b => {
                         assert.equal(b, "resultB")
-                        return setTimeout(() => resolve("resultE"), 300);
+                        return setTimeout(() => resolve("resultE"), DELAY);
                     }, reject)
                 }), eTransformAbort]
             },
             combine(aPromise, cPromise) {
                 return [(async () => {
                     const [a, c] = await Promise.all([aPromise, cPromise]);
-                    return new Promise((resolve) => setTimeout(() => resolve("resultE"), 300));
+                    return new Promise((resolve) => setTimeout(() => resolve("resultE"), DELAY));
                 })(), eCombineAbort]
             }
         }

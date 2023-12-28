@@ -4,17 +4,12 @@
   "description": "",
   "version": "0.0.1",
   "scripts": {
-    "build": "webpack",
-    "dev": "webpack --watch",
     "test": "mocha"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
     "mocha": "^10.2.0",
     "typescript": "^5.3.3",
-    "ts-node": "^10.9.2",
-    "ts-loader": "^9.5.1",
-    "webpack": "^5.89.0",
-    "webpack-cli": "^5.1.4"
+    "ts-node": "^10.9.2"
   }
 }
