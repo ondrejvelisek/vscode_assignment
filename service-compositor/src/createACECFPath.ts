@@ -3,11 +3,17 @@ import { promisifyA } from "./utils";
 
 export function createACECFPath (a: ServiceA, c: ServiceC, e: ServiceE, f: ServiceF, errorMapper: ErrorMapper) {
     return async (req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<Main_Result> => {
-        const resA = await promisifyA(a, errorMapper)(req, timeoutMillis, cancellation);
-        const resC = await c.call(req);
-        const [resE2Promise, cancelTokenE2] = e.combine(Promise.resolve(resA), Promise.resolve(resC));
-        const resE2 = await resE2Promise;
-        const resF2 = f.present(resC, resE2);
-        return resF2;
+        const resAPromise = promisifyA(a, errorMapper)(req, timeoutMillis, cancellation);
+        const resCPromise = c.call(req);
+        
+        const [resEPromise, cancelTokenE] = e.combine(resAPromise, resCPromise);
+        cancellation.onCancelled(cancelTokenE);
+
+        // No need to Promise.all since I suppose Service E waits for promise C anyway since it is a dependency
+        const resE = await resEPromise;
+        const resC = await resCPromise;
+
+        const resF = f.present(resC, resE);
+        return resF;
     }
 }
