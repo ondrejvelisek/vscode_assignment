@@ -134,7 +134,89 @@ suite("Service Composition", () => {
             assert.equal((err as Error).message, "timedOut")
         }
     })
+
+    // This highly depends on Services implementation. 
+    // To be really sure of non blocking implementation we would need to implement multithreading
+    // which is not possible without change of given API.
+    test("No blocking", async () => {
+        let timestamp = Date.now()
+        const a: ServiceA = {
+            start(req) {
+                assert.equal(req, "main")
+                return "tokenA"
+            },
+            poll(tok) {
+                assert.equal(tok, "tokenA")
+                return Date.now() > timestamp + 300 ? "resultA" : null
+            },
+            abort(tok) { }
+        }
+        const b: ServiceB = {
+            submit(req, isCancelled, timeout, callback) {
+                assert.equal(req, "main")
+                setTimeout(() => callback(undefined, "resultB"), 300)
+            }
+        }
+        const c: ServiceC = {
+            async call(req) {
+                assert.equal(req, "main")
+                return new Promise((resolve) => setTimeout(() => resolve("resultC"), 300))
+            }
+        }
+        const d: ServiceD = {
+            async merge(a, b) {
+                assert.equal(a, "resultA")
+                assert.equal(b, "resultB")
+                return new Promise((resolve) => setTimeout(() => resolve("resultD"), 300))
+            }
+        }
+        const e: ServiceE = {
+            transform(bFut) {
+                return [new Promise(resolve => {
+                    bFut.then(b => {
+                        assert.equal(b, "resultB")
+                        return setTimeout(() => resolve("resultE"), 300);
+                    })
+                }), () => { }]
+            },
+            combine(aPromise, cPromise) {
+                return [new Promise(async (resolve) => {
+                    const [a, c] = await Promise.all([aPromise, cPromise]);
+                    assert.equal(a, "resultA")
+                    assert.equal(c, "resultC")
+                    return setTimeout(() => resolve("resultE"), 300);
+                }), () => { }]
+            }
+        }
+        const f: ServiceF = {
+            present(c, e) {
+                assert.equal(c, "resultC")
+                assert.equal(e, "resultE")
+                return "resultF"
+            }
+        }
+        const sut = createSUT({ a, b, c, d, e, f })
+        const stopTicking = assertTime(Date.now())
+        const result = await sut.run("main", 1000, stubCancelledNever)
+        assert.equal(result, "resultF")
+        stopTicking()
+    })
 })
+
+// Every 10 ms adds task to event loop queue and checks if it is called at most 100 ms later. 
+const ASSERT_DELAY = 10;
+function assertTime(callTimestamp: number): () => void {
+    assert.equal(Date.now() < callTimestamp + 100, true);
+    const nextCallTimestamp = Date.now() + ASSERT_DELAY;
+    let stopTicking: () => void;
+    const timeout = setTimeout(() => {
+        stopTicking = assertTime(nextCallTimestamp)
+    }, ASSERT_DELAY)
+    return () => {
+        clearTimeout(timeout)
+        stopTicking?.();
+    }
+}
 
 function createSUT(overrides: {
     a?: ServiceA,
