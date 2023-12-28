@@ -25,11 +25,19 @@ export class ServiceComposition {
     }
 
     async run(req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<Main_Result> {
-        const abdPromise = this.abdPath(req, timeoutMillis, cancellation);
-        const becfPromise = this.becfPath(req, timeoutMillis, cancellation);
-        const acecfPromise = this.acecfPath(req, timeoutMillis, cancellation);
-        const result = await Promise.any([abdPromise, becfPromise, acecfPromise]);
-        return result;
+        try {
+            const abdPromise = this.abdPath(req, timeoutMillis, cancellation);
+            const becfPromise = this.becfPath(req, timeoutMillis, cancellation);
+            const acecfPromise = this.acecfPath(req, timeoutMillis, cancellation);
+            const result = await Promise.any([abdPromise, becfPromise, acecfPromise]);
+            return result;
+        } catch (err) {
+            if (err instanceof Error) {
+                throw await this.errorMapper.error([err]);
+            } else {
+                throw await this.errorMapper.error([new Error(`${err}`)]);
+            }
+        }
     }
 }
 
