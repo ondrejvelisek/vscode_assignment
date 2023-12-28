@@ -3,7 +3,7 @@ import { promisifyA } from "./utils";
 
 export function createACECFPath (a: ServiceA, c: ServiceC, e: ServiceE, f: ServiceF, errorMapper: ErrorMapper) {
     return async (req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<Main_Result> => {
-        const resA = await promisifyA(a)(req, timeoutMillis, cancellation);
+        const resA = await promisifyA(a, errorMapper)(req, timeoutMillis, cancellation);
         const resC = await c.call(req);
         const [resE2Promise, cancelTokenE2] = e.combine(Promise.resolve(resA), Promise.resolve(resC));
         const resE2 = await resE2Promise;

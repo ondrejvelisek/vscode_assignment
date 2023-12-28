@@ -3,7 +3,7 @@ import { promisifyB } from "./utils";
 
 export function createBECFPath (b: ServiceB, e: ServiceE, c: ServiceC, f: ServiceF, errorMapper: ErrorMapper) {
     return async (req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<Main_Result> => {
-        const resB = await promisifyB(b)(req, timeoutMillis, cancellation);
+        const resB = await promisifyB(b, errorMapper)(req, timeoutMillis, cancellation);
         const [resE1Promise, cancelTokenE1] = e.transform(Promise.resolve(resB))
         const resE1 = await resE1Promise;
         const resC = await c.call(req);
