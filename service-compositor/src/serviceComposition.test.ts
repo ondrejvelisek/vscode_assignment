@@ -49,11 +49,11 @@ suite("Service Composition", () => {
     }
     const e: ServiceE = {
         transform(bFut) {
-            return [new Promise(resolve => {
+            return [new Promise((resolve, reject) => {
                 bFut.then(b => {
                     assert.equal(b, "resultB")
                     return setTimeout(() => resolve("resultE"), 300);
-                })
+                }, reject)
             }), () => { }]
         },
         combine(aPromise, cPromise) {
@@ -130,6 +130,41 @@ suite("Service Composition", () => {
         const f: ServiceF = {
             present(c, e) {
                 throw new Error('Service F failed');
+            }
+        }
+        const errorMapper = {
+            aborted: () => new Error("aborted"),
+            timedOut: () => new Error("timedOut"),
+            error: async () => new Error("wrapped"),
+        }
+        const sut = createSUT({ a, b, c, d, e, f, errorMapper })
+        return assert.rejects(
+            sut.run("main", 1000, stubCancelledNever),
+            new Error("wrapped")
+        )
+    })
+
+    test("Error Service A and B", async () => {
+        let timestamp = Date.now()
+        const a: ServiceA = {
+            start(req) {
+                assert.equal(req, "main")
+                return "tokenA"
+            },
+            poll(tok) {
+                assert.equal(tok, "tokenA")
+                if (Date.now() > timestamp + 300) {
+                    throw new Error('Service A failed')
+                } else {
+                    return null;
+                }
+            },
+            abort(tok) { }
+        }
+        const b: ServiceB = {
+            submit(req, isCancelled, timeout, callback) {
+                assert.equal(req, "main")
+                setTimeout(() => callback(new Error('Service B failed'), ''), 300)
             }
         }
         const errorMapper = {
