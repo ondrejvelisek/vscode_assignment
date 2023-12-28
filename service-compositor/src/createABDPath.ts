@@ -11,7 +11,6 @@ export function createABDPath (a: ServiceA, b: ServiceB, d: ServiceD, errorMappe
             const resD = await d.merge(resA, resB);
             return resD;
         } catch (err) {
-            console.warn('ABDPath Error');
             throw err;
         }
     }

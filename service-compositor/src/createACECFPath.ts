@@ -17,7 +17,6 @@ export function createACECFPath (a: ServiceA, c: ServiceC, e: ServiceE, f: Servi
             const resF = f.present(resC, resE);
             return resF;
         } catch (err) {
-            console.warn('ACECFPath Error');
             throw err;
         }
     }

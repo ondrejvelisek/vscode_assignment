@@ -14,7 +14,6 @@ export function createBECFPath (b: ServiceB, e: ServiceE, c: ServiceC, f: Servic
             const resF = f.present(resC, resE);
             return resF;
         } catch (err) {
-            console.warn('BECFPath Error');
             throw err;
         }
     }

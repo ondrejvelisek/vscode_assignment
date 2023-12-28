@@ -178,6 +178,68 @@ suite("Service Composition", () => {
             new Error("wrapped")
         )
     })
+
+    test("Error Service C and D", async () => {
+        const c: ServiceC = {
+            async call(req) {
+                assert.equal(req, "main")
+                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service C failed")), 300))
+            }
+        }
+        const d: ServiceD = {
+            async merge(a, b) {
+                assert.equal(a, "resultA")
+                assert.equal(b, "resultB")
+                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service D failed")), 300))
+            }
+        }
+        const errorMapper = {
+            aborted: () => new Error("aborted"),
+            timedOut: () => new Error("timedOut"),
+            error: async () => new Error("wrapped"),
+        }
+        const sut = createSUT({ a, b, c, d, e, f, errorMapper })
+        return assert.rejects(
+            sut.run("main", 1000, stubCancelledNever),
+            new Error("wrapped")
+        )
+    })
+
+    test("Error Service E and D", async () => {
+        const e: ServiceE = {
+            transform(bFut) {
+                return [new Promise((resolve, reject) => {
+                    bFut.then(b => {
+                        assert.equal(b, "resultB")
+                        return setTimeout(() => reject(new Error('Service E failed')), 300);
+                    }, reject)
+                }), () => { }]
+            },
+            combine(aPromise, cPromise) {
+                return [(async () => {
+                    const [a, c] = await Promise.all([aPromise, cPromise]);
+                    return new Promise((resolve, reject) => setTimeout(() => reject(new Error('Service E failed')), 300));
+                })(), () => { }]
+            }
+        }
+        const d: ServiceD = {
+            async merge(a, b) {
+                assert.equal(a, "resultA")
+                assert.equal(b, "resultB")
+                return new Promise((resolve, reject) => setTimeout(() => reject(new Error("Service D failed")), 300))
+            }
+        }
+        const errorMapper = {
+            aborted: () => new Error("aborted"),
+            timedOut: () => new Error("timedOut"),
+            error: async () => new Error("wrapped"),
+        }
+        const sut = createSUT({ a, b, c, d, e, f, errorMapper })
+        return assert.rejects(
+            sut.run("main", 1000, stubCancelledNever),
+            new Error("wrapped")
+        )
+    })
 })
 
 // Every 10 ms adds task to event loop queue and checks if it is called at most 100 ms later. 
