@@ -23,3 +23,18 @@ Follow these steps
 * Press `F5` to run dev window with extension
 
 ## service-compositor
+
+Tested with `OS Ubuntu 22.04`, `vscode 1.85.1`, `node v20.9.0` and `npm v10.1.0` 
+
+Follow these steps
+*   Run following commands in terminal from `vscode_assigment/` folder (working directory)
+    ```
+    cd service-compositor/
+    uname -a
+    code -v
+    node -v
+    npm -v
+    npm install
+    npm run test
+    ```
+
