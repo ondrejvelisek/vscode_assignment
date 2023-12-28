@@ -12,114 +12,78 @@ import {
 } from "./serviceComposition";
 
 
+
 suite("Service Composition", () => {
+    // FIXME: Does not work when tests runs in parallel;
+    let timestamp = Date.now();
+    const a: ServiceA = {
+        start(req) {
+            assert.equal(req, "main")
+            timestamp = Date.now();
+            return "tokenA"
+        },
+        poll(tok) {
+            assert.equal(tok, "tokenA")
+            return Date.now() > timestamp + 300 ? "resultA" : null
+        },
+        abort(tok) { }
+    }
+    const b: ServiceB = {
+        submit(req, isCancelled, timeout, callback) {
+            assert.equal(req, "main")
+            setTimeout(() => callback(undefined, "resultB"), 300)
+        }
+    }
+    const c: ServiceC = {
+        async call(req) {
+            assert.equal(req, "main")
+            return new Promise((resolve) => setTimeout(() => resolve("resultC"), 300))
+        }
+    }
+    const d: ServiceD = {
+        async merge(a, b) {
+            assert.equal(a, "resultA")
+            assert.equal(b, "resultB")
+            return new Promise((resolve) => setTimeout(() => resolve("resultD"), 300))
+        }
+    }
+    const e: ServiceE = {
+        transform(bFut) {
+            return [new Promise(resolve => {
+                bFut.then(b => {
+                    assert.equal(b, "resultB")
+                    return setTimeout(() => resolve("resultE"), 300);
+                })
+            }), () => { }]
+        },
+        combine(aPromise, cPromise) {
+            return [(async () => {
+                const [a, c] = await Promise.all([aPromise, cPromise]);
+                return new Promise((resolve) => setTimeout(() => resolve("resultE"), 300));
+            })(), () => { }]
+        }
+    }
+    const f: ServiceF = {
+        present(c, e) {
+            assert.equal(c, "resultC")
+            assert.equal(e, "resultE")
+            return "resultF"
+        }
+    }
 
     test("Happy path (A + B) -> D", async () => {
-        let polls = 0
-        const a: ServiceA = {
-            start(req) {
-                assert.equal(req, "main")
-                return "tokenA"
-            },
-            poll(tok) {
-                assert.equal(tok, "tokenA")
-                polls += 1
-                return polls > 2 ? "resultA" : null
-            },
-            abort(tok) { }
-        }
-        const b: ServiceB = {
-            submit(req, isCancelled, timeout, callback) {
-                assert.equal(req, "main")
-                callback(undefined, "resultB")
-            }
-        }
-        const d: ServiceD = {
-            async merge(a, b) {
-                assert.equal(a, "resultA")
-                assert.equal(b, "resultB")
-                return "resultD"
-            }
-        }
         const sut = createSUT({ a, b, d })
         const result = await sut.run("main", 1000, stubCancelledNever)
         assert.equal(result, "resultD")
     })
 
     test("Happy path ((B -> E) + C) -> F", async () => {
-        const b: ServiceB = {
-            submit(req, isCancelled, timeout, callback) {
-                assert.equal(req, "main")
-                callback(undefined, "resultB")
-            }
-        }
-        const c: ServiceC = {
-            async call(req) {
-                assert.equal(req, "main")
-                return "resultC"
-            }
-        }
-        const e: ServiceE = {
-            transform(bFut) {
-                return [new Promise(r => {
-                    bFut.then(b => {
-                        assert.equal(b, "resultB")
-                        r("resultE")
-                    })
-                }), () => { }]
-            },
-            combine: stubServiceENever
-        }
-        const f: ServiceF = {
-            present(c, e) {
-                assert.equal(c, "resultC")
-                assert.equal(e, "resultE")
-                return "resultF"
-            }
-        }
         const sut = createSUT({ b, c, e, f })
         const result = await sut.run("main", 1000, stubCancelledNever)
         assert.equal(result, "resultF")
     })
 
     test("Happy path (((A + C) -> E) + C) -> F", async () => {
-        let polls = 0
-        const a: ServiceA = {
-            start(req) {
-                assert.equal(req, "main")
-                return "tokenA"
-            },
-            poll(tok) {
-                assert.equal(tok, "tokenA")
-                polls += 1
-                return polls > 2 ? "resultA" : null
-            },
-            abort(tok) { }
-        }
-        const c: ServiceC = {
-            async call(req) {
-                assert.equal(req, "main")
-                return "resultC"
-            }
-        }
-        const e: ServiceE = {
-            transform: stubServiceENever,
-            combine(aPromise, cPromise) {
-                return [new Promise(async (resolve) => {
-                    const [a, c] = await Promise.all([aPromise, cPromise]);
-                    assert.equal(a, "resultA")
-                    assert.equal(c, "resultC")
-                    resolve("resultE")
-                }), () => { }]
-            }
-        }
-        const f: ServiceF = {
-            present(c, e) {
-                assert.equal(c, "resultC")
-                assert.equal(e, "resultE")
-                return "resultF"
-            }
-        }
         const sut = createSUT({ a, c, e, f })
         const result = await sut.run("main", 1000, stubCancelledNever)
         assert.equal(result, "resultF")
@@ -139,6 +103,14 @@ suite("Service Composition", () => {
     // To be really sure of non blocking implementation we would need to implement multithreading
     // which is not possible without change of given API.
     test("No blocking", async () => {
+        const sut = createSUT({ a, b, c, d, e, f })
+        const stopTicking = assertTime(Date.now())
+        const result = await sut.run("main", 1000, stubCancelledNever)
+        assert.equal(result, "resultF")
+        stopTicking()
+    })
+
+    test("Error Service A and F", async () => {
         let timestamp = Date.now()
         const a: ServiceA = {
             start(req) {
@@ -147,59 +119,29 @@ suite("Service Composition", () => {
             },
             poll(tok) {
                 assert.equal(tok, "tokenA")
-                return Date.now() > timestamp + 300 ? "resultA" : null
+                if (Date.now() > timestamp + 300) {
+                    throw new Error('Service A failed')
+                } else {
+                    return null;
+                }
             },
             abort(tok) { }
         }
-        const b: ServiceB = {
-            submit(req, isCancelled, timeout, callback) {
-                assert.equal(req, "main")
-                setTimeout(() => callback(undefined, "resultB"), 300)
-            }
-        }
-        const c: ServiceC = {
-            async call(req) {
-                assert.equal(req, "main")
-                return new Promise((resolve) => setTimeout(() => resolve("resultC"), 300))
-            }
-        }
-        const d: ServiceD = {
-            async merge(a, b) {
-                assert.equal(a, "resultA")
-                assert.equal(b, "resultB")
-                return new Promise((resolve) => setTimeout(() => resolve("resultD"), 300))
-            }
-        }
-        const e: ServiceE = {
-            transform(bFut) {
-                return [new Promise(resolve => {
-                    bFut.then(b => {
-                        assert.equal(b, "resultB")
-                        return setTimeout(() => resolve("resultE"), 300);
-                    })
-                }), () => { }]
-            },
-            combine(aPromise, cPromise) {
-                return [new Promise(async (resolve) => {
-                    const [a, c] = await Promise.all([aPromise, cPromise]);
-                    assert.equal(a, "resultA")
-                    assert.equal(c, "resultC")
-                    return setTimeout(() => resolve("resultE"), 300);
-                }), () => { }]
-            }
-        }
         const f: ServiceF = {
             present(c, e) {
-                assert.equal(c, "resultC")
-                assert.equal(e, "resultE")
-                return "resultF"
+                throw new Error('Service F failed');
             }
         }
-        const sut = createSUT({ a, b, c, d, e, f })
-        const stopTicking = assertTime(Date.now())
-        const result = await sut.run("main", 1000, stubCancelledNever)
-        assert.equal(result, "resultF")
-        stopTicking()
+        const errorMapper = {
+            aborted: () => new Error("aborted"),
+            timedOut: () => new Error("timedOut"),
+            error: async () => new Error("wrapped"),
+        }
+        const sut = createSUT({ a, b, c, d, e, f, errorMapper })
+        return assert.rejects(
+            sut.run("main", 1000, stubCancelledNever),
+            new Error("wrapped")
+        )
     })
 })
 

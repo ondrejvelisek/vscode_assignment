@@ -2,34 +2,44 @@ import { CancellationToken, ErrorMapper, Main_Request, ServiceA, ServiceA_Result
 
 export function promisifyA (a: ServiceA, errorMapper: ErrorMapper) {
     return async (req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<ServiceA_Result> => {
-        return new Promise((resolve, reject) => {
-            const token = a.start(req);
-            const startMillis = Date.now();
-            const endMillis = startMillis + timeoutMillis;
+        return await new Promise((resolve, reject) => {
+            try {
+                const token = a.start(req);
+                const startMillis = Date.now();
+                const endMillis = startMillis + timeoutMillis;
 
-            let res: ServiceA_Result|null = a.poll(token);
-            if (res) {
-                resolve(res);
-                return;
-            }
-
-            const interval = setInterval(() => {
-                res = a.poll(token);
+                let res: ServiceA_Result|null = a.poll(token);
                 if (res) {
-                    clearInterval(interval);
                     resolve(res);
-                } else if (Date.now() > endMillis) {
-                    clearInterval(interval);
-                    reject(errorMapper.timedOut());
+                    return;
                 }
-                // else continue ticking
-            }, 10);
 
-            cancellation.onCancelled(() => {
-                clearInterval(interval);
-                reject(errorMapper.aborted());
-                a.abort(token);
-            });
+                const interval = setInterval(() => {
+                    try {
+                        res = a.poll(token);
+                    } catch (err) {
+                        clearInterval(interval);
+                        reject(err)
+                    }
+                    if (res) {
+                        clearInterval(interval);
+                        resolve(res);
+                    } else if (Date.now() > endMillis) {
+                        clearInterval(interval);
+                        reject(errorMapper.timedOut());
+                    }
+                    // else continue ticking
+                }, 10);
+
+                cancellation.onCancelled(() => {
+                    clearInterval(interval);
+                    reject(errorMapper.aborted());
+                    a.abort(token);
+                });
+
+            } catch (err) {
+                reject(err)
+            }
         })
     }
 }

@@ -25,7 +25,7 @@ export class ServiceComposition {
     }
 
     async run(req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<Main_Result> {
-        return new Promise(async (resolve, reject) => {
+        return await new Promise(async (resolve, reject) => {
             setTimeout(() => {
                 reject(this.errorMapper.timedOut())
                 // TODO Could also cancel running requests to save performance.
