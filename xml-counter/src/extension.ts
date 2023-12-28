@@ -26,7 +26,7 @@ export function deactivate() {}
 async function countXmlFiles (fileUri: vscode.Uri, fileType: vscode.FileType): Promise<number> {
 	if (fileType === vscode.FileType.File) {
 		// TODO count only XML files
-		return 1; 
+		return fileUri.path.endsWith('.xml') ? 1 : 0; 
 	} else if (fileType === vscode.FileType.Directory) {
 		const folderUri = fileUri;
 		const folderFiles = await vscode.workspace.fs.readDirectory(folderUri);
