@@ -1,7 +1,5 @@
-import { CancellationToken, ErrorMapper, ServiceA, ServiceA_Result, ServiceB, ServiceB_Result, ServiceD } from "./serviceComposition";
-
-export type Main_Request = string
-export type Main_Result = string
+import { CancellationToken, ErrorMapper, Main_Request, Main_Result, ServiceA, ServiceA_Result, ServiceB, ServiceB_Result, ServiceD } from "./serviceComposition";
+import { promisifyB } from "./utils";
 
 export function createABDPath (a: ServiceA, b: ServiceB, d: ServiceD, errorMapper: ErrorMapper) {
     return async (req: Main_Request, timeoutMillis: number, cancellation: CancellationToken): Promise<Main_Result> => {
@@ -13,15 +11,7 @@ export function createABDPath (a: ServiceA, b: ServiceB, d: ServiceD, errorMappe
         resA = a.poll(tokenA) ?? resA ?? '';
         resA = a.poll(tokenA) ?? resA ?? '';
         resA = a.poll(tokenA) ?? resA ?? '';
-        const resB = await new Promise<ServiceB_Result>((resolve, reject) => {
-            b.submit(req, cancellation.isCancelled, timeoutMillis, async (err, resB) => {
-                if (err) {
-                    reject(err)
-                } else {
-                    resolve(resB)
-                }
-            })
-        });
+        const resB = await promisifyB(b)(req, timeoutMillis, cancellation);
         const resD = await d.merge(resA, resB);
         return resD;
     }
